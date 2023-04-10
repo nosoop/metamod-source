@@ -53,7 +53,7 @@
 
 namespace SourceHook
 {
-	static inline bool GetPageBits(void *addr, int *bits)
+	static inline bool GetPageBits(void *addr, int *bits, void **pagestart = NULL, size_t *pagelen = NULL)
 	{
 #if SH_SYS == SH_SYS_LINUX
 		// On linux, first check /proc/self/maps
@@ -78,6 +78,11 @@ namespace SourceHook
 						*bits |= SH_MEM_WRITE;
 					if (x == 'x')
 						*bits |= SH_MEM_EXEC;
+					
+					if (pagestart)
+						*pagestart = reinterpret_cast<void*>(rlower);
+					if (pagelen)
+						*pagelen = rupper - rlower;
 					return true;
 				}
 				// Read to end of line
@@ -215,14 +220,18 @@ namespace SourceHook
 	inline bool MakePageWritable(void *addr)
 	{
 		int bits;
-		if (GetPageBits(addr, &bits)) {
+		void* start = addr;
+		size_t length = sizeof(void *);
+		// on linux, avoid VMA fragmentation by making the entire segment writable
+		// this is likely unsafe
+		if (GetPageBits(addr, &bits, &start, &length)) {
 			if (bits & SH_MEM_WRITE)
 				return true;
 			bits |= SH_MEM_WRITE;
 		} else {
 			bits = SH_MEM_READ | SH_MEM_WRITE | SH_MEM_EXEC;
 		}
-		return SetMemAccess(addr, sizeof(void *), bits);
+		return SetMemAccess(start, length, bits);
 	}
 
 #if SH_XP == SH_XP_POSIX
